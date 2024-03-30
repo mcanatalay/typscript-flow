@@ -832,6 +832,215 @@ class EntryFlow<K, V> {
   }
 }
 
+class PromiseItem<T>
+  extends Promise<T | undefined | null>
+  implements PromiseLike<T | undefined | null>
+{
+  static of<T>(
+    value: T | undefined | null | PromiseLike<Awaited<T> | undefined | null>,
+  ): PromiseItem<T> {
+    return new PromiseItem((resolve) => resolve(value));
+  }
+
+  static empty<T>(): PromiseItem<T> {
+    return new PromiseItem((resolve) => resolve(undefined));
+  }
+
+  map<U>(mapper: (value: NonNullable<T>) => U | PromiseLike<Awaited<U>>): PromiseItem<U> {
+    return new PromiseItem((resolve, reject) =>
+      this.then((value) => {
+        try {
+          resolve(value == null ? undefined : mapper(value));
+        } catch (error) {
+          reject(error);
+        }
+      }, reject),
+    );
+  }
+
+  mapError<U>(mapper: (error: any) => U | PromiseLike<Awaited<U>>): PromiseItem<U> {
+    return new PromiseItem((resolve, reject) =>
+      this.catch((error) => {
+        try {
+          resolve(mapper(error));
+        } catch (error) {
+          reject(error);
+        }
+      }),
+    );
+  }
+
+  filter(predicate: (value: NonNullable<T>) => boolean): PromiseItem<T> {
+    return new PromiseItem((resolve, reject) =>
+      this.then((value) => {
+        try {
+          if (value == null) resolve(undefined);
+          else if (predicate(value)) resolve(value);
+          else resolve(undefined);
+        } catch (error) {
+          reject(error);
+        }
+      }, reject),
+    );
+  }
+
+  filterBy<U>(
+    extractor: (value: NonNullable<T>) => U,
+    predicate: (value: NonNullable<U>) => boolean,
+  ): PromiseItem<T> {
+    return new PromiseItem((resolve, reject) =>
+      this.then((value) => {
+        try {
+          if (value == null) resolve(undefined);
+          const mapped = extractor(value!);
+          if (mapped == null) resolve(undefined);
+          else if (predicate(mapped)) resolve(value);
+          else resolve(undefined);
+        } catch (error) {
+          reject(error);
+        }
+      }, reject),
+    );
+  }
+
+  remove(predicate: (value: NonNullable<T>) => boolean): PromiseItem<T> {
+    return new PromiseItem((resolve, reject) =>
+      this.then((value) => {
+        try {
+          if (value == null) resolve(undefined);
+          else if (predicate(value)) resolve(undefined);
+          else resolve(value);
+        } catch (error) {
+          reject(error);
+        }
+      }, reject),
+    );
+  }
+
+  removeBy<U>(
+    extractor: (value: NonNullable<T>) => U,
+    predicate: (value: NonNullable<U>) => boolean,
+  ): PromiseItem<T> {
+    return new PromiseItem((resolve, reject) =>
+      this.then((value) => {
+        try {
+          if (value == null) resolve(undefined);
+          const mapped = extractor(value!);
+          if (mapped == null) resolve(undefined);
+          else if (predicate(mapped)) resolve(undefined);
+          else resolve(value);
+        } catch (error) {
+          reject(error);
+        }
+      }, reject),
+    );
+  }
+
+  ifPresent(consumer: (value: NonNullable<T>) => void): PromiseItem<T> {
+    return new PromiseItem((resolve, reject) =>
+      this.then((value) => {
+        try {
+          if (value != null) consumer(value!);
+          resolve(value);
+        } catch (error) {
+          reject(error);
+        }
+      }, reject),
+    );
+  }
+
+  ifEmpty(emptyAction: () => void): PromiseItem<T> {
+    return new PromiseItem((resolve, reject) =>
+      this.then((value) => {
+        try {
+          if (value == null) emptyAction();
+          resolve(value);
+        } catch (error) {
+          reject(error);
+        }
+      }, reject),
+    );
+  }
+
+  ifThrown(consumer: (value: any) => void): PromiseItem<T> {
+    return new PromiseItem((resolve, reject) =>
+      this.then(resolve, (error) => {
+        try {
+          if (error != null) consumer(error);
+          reject(error);
+        } catch (_) {
+          reject(error);
+        }
+      }),
+    );
+  }
+
+  isPresent(): PromiseItem<boolean> {
+    return new PromiseItem((resolve, reject) =>
+      this.then((value) => resolve(value != null), reject),
+    );
+  }
+
+  isEmpty(): PromiseItem<boolean> {
+    return new PromiseItem((resolve, reject) =>
+      this.then((value) => resolve(value == null), reject),
+    );
+  }
+
+  or(supplier: () => PromiseItem<T>): PromiseItem<T> {
+    return new PromiseItem((resolve, reject) =>
+      this.then((value) => {
+        if (value != null) resolve(value);
+        else resolve(supplier());
+      }, reject),
+    );
+  }
+
+  orElse(other: T | PromiseLike<Awaited<T>>): PromiseItem<T> {
+    return new PromiseItem((resolve, reject) =>
+      this.then((value) => {
+        try {
+          if (value != null) resolve(value);
+          else resolve(other);
+        } catch (error) {
+          reject(error);
+        }
+      }, reject),
+    );
+  }
+
+  orElseGet(supplier: () => T | PromiseLike<Awaited<T>>): PromiseItem<T> {
+    return new PromiseItem((resolve, reject) =>
+      this.then((value) => {
+        try {
+          if (value != null) resolve(value);
+          else resolve(supplier());
+        } catch (error) {
+          reject(error);
+        }
+      }, reject),
+    );
+  }
+
+  orElseThrow(errorSupplier: () => any): PromiseItem<T>;
+  orElseThrow(error: any): PromiseItem<T>;
+  orElseThrow(supplierOrError: () => any): PromiseItem<T> {
+    return new PromiseItem<T>((resolve, reject) =>
+      this.then((value) => {
+        try {
+          if (value != null) resolve(value);
+          else
+            reject(
+              typeof supplierOrError === 'function' ? supplierOrError() : supplierOrError,
+            );
+        } catch (error) {
+          reject(error);
+        }
+      }, reject),
+    );
+  }
+}
+
 class PromiseFlow<T> {
   protected constructor(protected readonly iterators: AsyncIterableIterator<T>[]) {}
   static of<T>(set: Set<Promise<T>>): PromiseFlow<T>;
